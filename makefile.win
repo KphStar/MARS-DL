@@ -1,0 +1,3 @@
+compile: prep sources.txt
+	@echo ==> Compiling sources (with JGit libraries)
+	@$(JAVAC) -cp "lib/*" -encoding UTF-8 -d $(OUT) @sources.txt Mars.java
