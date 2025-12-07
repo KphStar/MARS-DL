@@ -6,23 +6,15 @@ import mars.mips.hardware.*;
 import mars.mips.instructions.*;
 
 /**
- * Demon Slayer Assembly – playful custom ISA ops for MARS.
- * All instructions are purely software-side effects on registers/memory.
- * No hidden performance effects; any "mode" is tracked by static flags here.
+ * Demon Slayer Assembly
+ * Custom instruction set themed around breathing styles:
+ * Water, Sun, Thunder, Beast, plus some Nezuko utilities.
+ *
+ * All instructions operate on the normal MARS register file and memory.
  */
-
-
 public class DemonSlayerAssembly extends CustomAssembly {
 
-      // 🔹 NEW: enable this language by default
-    public DemonSlayerAssembly() {
-        this.enabled = true;
-    }
-
-
-    // lightweight “status” for a couple of ops
     private static boolean breathOn = false;
-    private static int     markCountdown = 0; // decremented by an explicit helper op
 
     @Override
     public String getName() {
@@ -31,34 +23,38 @@ public class DemonSlayerAssembly extends CustomAssembly {
 
     @Override
     public String getDescription() {
-        return "Anime-flavored MIPS-style ops: breath, mark, thunder-skip, secure box/unbox, etc.";
+        return "Anime-flavored MIPS-like instructions: Water/Sun/Thunder/Beast breathing styles.";
     }
 
     @Override
     protected void populate() {
 
-        // 1) BREATH.ON  — rd <- rs*2, set breath flag
+        // ============================================================
+        //  1–4: Core Breathing Control
+        // ============================================================
+
+        // 1) BREATH.ON  — enable breathing mode
         instructionList.add(new BasicInstruction(
             "breath.on $t1,$t2",
-            "Breathing style on: set flag; ($t1) = 2*($t2).",
+            "Enable breathing: ($t1) = 2*($t2), breath flag set.",
             BasicInstructionFormat.R_FORMAT,
-            "000000 fffff sssss 00000 00000 010001", // op=0, funct=0x11 (arbitrary here)
+            "000000 fffff sssss 00000 00000 010001",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     int[] op = st.getOperands();
-                    int rs   = RegisterFile.getValue(op[1]);
-                    RegisterFile.updateRegister(op[0], rs << 1);
+                    int src  = RegisterFile.getValue(op[1]);
+                    RegisterFile.updateRegister(op[0], src << 1);
                     breathOn = true;
                 }
             }
         ));
 
-        // 2) BREATH.OFF — clear flag
+        // 2) BREATH.OFF — disable breathing mode
         instructionList.add(new BasicInstruction(
             "breath.off",
-            "Breathing style off: clear flag.",
+            "Disable breathing mode (breath flag cleared).",
             BasicInstructionFormat.R_FORMAT,
-            "000000 00000 00000 00000 00000 010010", // funct=0x12
+            "000000 00000 00000 00000 00000 010010",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     breathOn = false;
@@ -66,41 +62,119 @@ public class DemonSlayerAssembly extends CustomAssembly {
             }
         ));
 
-        // 3) THUNDER.CLAP — rd = rs+rt; if result==0, skip next instruction (branch +4)
+        // 3) BREATH.FOCUS — if breathing on, boost register
         instructionList.add(new BasicInstruction(
-            "thunder.clap $t1,$t2,$t3",
-            "Fused add-and-dash: ($t1)=($t2)+($t3); if zero then skip next instr.",
+            "breath.focus $t1",
+            "If breathing is on, ($t1) = 3*($t1); otherwise unchanged.",
             BasicInstructionFormat.R_FORMAT,
-            "000000 fffff sssss ddddd 00000 010011", // funct=0x13
+            "000000 fffff 00000 00000 00000 010011",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     int[] op = st.getOperands();
-                    int a = RegisterFile.getValue(op[1]);
-                    int b = RegisterFile.getValue(op[2]);
-                    int r = a + b;
-                    RegisterFile.updateRegister(op[0], r);
-                    if (r == 0) {
-                        // skip one instruction (branch relative +1)
-                        Globals.instructionSet.processBranch(1);
+                    int val = RegisterFile.getValue(op[0]);
+                    if (breathOn) {
+                        RegisterFile.updateRegister(op[0], val * 3);
                     }
                 }
             }
         ));
 
-        // 4) WATER.WHEEL — rotate left the 32-bit word at MEM[base] by (len & 7) and put into rd
+        // 4) BREATH.RESET — clear a breathing register
+        instructionList.add(new BasicInstruction(
+            "breath.reset $t1",
+            "Reset ($t1) to 0.",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff 00000 00000 00000 010100",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    RegisterFile.updateRegister(op[0], 0);
+                }
+            }
+        ));
+
+        // ============================================================
+        //  5–10: Water Breathing techniques
+        // ============================================================
+
+        // 5) WATER.FIRST  — flowing slash: add
+        instructionList.add(new BasicInstruction(
+            "water.first $t1,$t2,$t3",
+            "Water First Form: ($t1) = ($t2) + ($t3).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 010101",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], a + b);
+                }
+            }
+        ));
+
+        // 6) WATER.SECOND — water surface slash: subtract
+        instructionList.add(new BasicInstruction(
+            "water.second $t1,$t2,$t3",
+            "Water Second Form: ($t1) = ($t2) - ($t3).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 010110",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], a - b);
+                }
+            }
+        ));
+
+        // 7) WATER.THIRD — water wheel: multiply
+        instructionList.add(new BasicInstruction(
+            "water.third $t1,$t2,$t3",
+            "Water Third Form: ($t1) = ($t2) * ($t3).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 010111",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], a * b);
+                }
+            }
+        ));
+
+        // 8) WATER.FOURTH — calm stream: average
+        instructionList.add(new BasicInstruction(
+            "water.fourth $t1,$t2,$t3",
+            "Water Fourth Form: ($t1) = (($t2)+($t3))/2.",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 011000",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], (a + b) / 2);
+                }
+            }
+        ));
+
+        // 9) WATER.WHEEL — rotate-left word in memory
         instructionList.add(new BasicInstruction(
             "water.wheel $t1,0($t2),$t3",
-            "Rotate-left the word at memory[($t2)+0] by ($t3 & 7) bits into ($t1).",
+            "Rotate-left MEM[($t2)+0] by ($t3 & 7) bits into ($t1).",
             BasicInstructionFormat.R_FORMAT,
-            "000000 fffff sssss ddddd 00000 010100", // funct=0x14, rs=base, rt=len, rd=dest
+            "000000 fffff sssss ttttt 00000 011001",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     int[] op = st.getOperands();
                     int base = RegisterFile.getValue(op[1]);
-                    int len  = RegisterFile.getValue(op[2]) & 7;
+                    int shift = RegisterFile.getValue(op[2]) & 7;
                     try {
                         int w = Globals.memory.getWord(base);
-                        int rl = (w << len) | (w >>> (32 - len));
+                        int rl = (w << shift) | (w >>> (32 - shift));
                         RegisterFile.updateRegister(op[0], rl);
                     } catch (AddressErrorException e) {
                         throw new ProcessingException(st, e);
@@ -109,35 +183,344 @@ public class DemonSlayerAssembly extends CustomAssembly {
             }
         ));
 
-        // 5) SUN.BLAZE — saturating add immediate (I-format shape)
+        // 10) WATER.RIPPLE — add half immediate
+      instructionList.add(new BasicInstruction(
+    "water.ripple $t1,100",
+    "Water Ripple: ($t1) = ($t1) + (imm / 2).",
+    BasicInstructionFormat.I_FORMAT,
+    "001000 fffff 00000 ssssssssssssssss",
+    new SimulationCode() {
+        public void simulate(ProgramStatement st) throws ProcessingException {
+            int[] op = st.getOperands();
+            int src = RegisterFile.getValue(op[0]);
+            int imm = op[1] << 16 >> 16;
+            RegisterFile.updateRegister(op[0], src + imm / 2);
+        }
+    }
+));
+
+        // ============================================================
+        //  11–16: Sun Breathing techniques
+        // ============================================================
+
+        // 11) SUN.FIRST — blazing slash: OR
         instructionList.add(new BasicInstruction(
-            "sun.blaze $t1,$t2,100",
-            "Saturating addi: ($t1) = sat( ($t2) + imm ).",
-            BasicInstructionFormat.I_FORMAT,
-            "001101 fffff sssss ssssssssssssssss", // opcode 0x0D here for demo
+            "sun.first $t1,$t2,$t3",
+            "Sun First Form: ($t1) = ($t2) | ($t3).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 011010",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     int[] op = st.getOperands();
-                    int rs = RegisterFile.getValue(op[1]);
-                    int imm = op[2] << 16 >> 16; // sign-extend 16-bit
-                    long sum = (long)rs + (long)imm;
-                    if (sum > Integer.MAX_VALUE) sum = Integer.MAX_VALUE;
-                    if (sum < Integer.MIN_VALUE) sum = Integer.MIN_VALUE;
-                    RegisterFile.updateRegister(op[0], (int)sum);
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], a | b);
                 }
             }
         ));
 
-        // 6) NEZUKO.BOX — store XOR-masked
+        // 12) SUN.SECOND — harsh light: AND
         instructionList.add(new BasicInstruction(
-            "nezuko.box $t1,0($t2)",
-            "Secure store: MEM[($t2)+0] = ($t1) ^ 0xA5A5A5A5.",
-            BasicInstructionFormat.I_FORMAT,
-            "101011 fffff sssss ssssssssssssssss", // like SW (0x2B), we’ll just simulate special behavior
+            "sun.second $t1,$t2,$t3",
+            "Sun Second Form: ($t1) = ($t2) & ($t3).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 011011",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     int[] op = st.getOperands();
-                    int rt = RegisterFile.getValue(op[0]);
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], a & b);
+                }
+            }
+        ));
+
+        // 13) SUN.THIRD — solar spark: XOR
+        instructionList.add(new BasicInstruction(
+            "sun.third $t1,$t2,$t3",
+            "Sun Third Form: ($t1) = ($t2) ^ ($t3).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 011100",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], a ^ b);
+                }
+            }
+        ));
+
+        // 14) SUN.HEAL — clamp to non-negative
+        instructionList.add(new BasicInstruction(
+            "sun.heal $t1",
+            "Sun Heal: if ($t1) < 0 then set to 0.",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff 00000 00000 00000 011101",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int v = RegisterFile.getValue(op[0]);
+                    if (v < 0) v = 0;
+                    RegisterFile.updateRegister(op[0], v);
+                }
+            }
+        ));
+
+// 15) SUN.BLAZE — saturating add immediate (in-place)
+instructionList.add(new BasicInstruction(
+    "sun.blaze $t1,100",
+    "Sun Blaze: ($t1) = sat( ($t1) + imm ).",
+    BasicInstructionFormat.I_FORMAT,
+    "001101 fffff 00000 ssssssssssssssss",
+    new SimulationCode() {
+        public void simulate(ProgramStatement st) throws ProcessingException {
+            int[] op = st.getOperands();
+            int src = RegisterFile.getValue(op[0]);       // same register as dest
+            int imm = op[1] << 16 >> 16;                  // sign-extended imm
+            long sum = (long) src + (long) imm;
+            if (sum > Integer.MAX_VALUE) sum = Integer.MAX_VALUE;
+            if (sum < Integer.MIN_VALUE) sum = Integer.MIN_VALUE;
+            RegisterFile.updateRegister(op[0], (int) sum);
+        }
+    }
+));
+
+        // 16) SUN.RISING — shift-left by other reg
+        instructionList.add(new BasicInstruction(
+            "sun.rising $t1,$t2,$t3",
+            "Sun Rising: ($t1) = ($t2) << ( ($t3) & 31 ).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 011110",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int val = RegisterFile.getValue(op[1]);
+                    int sh  = RegisterFile.getValue(op[2]) & 31;
+                    RegisterFile.updateRegister(op[0], val << sh);
+                }
+            }
+        ));
+
+        // ============================================================
+        //  17–22: Thunder Breathing techniques
+        // ============================================================
+
+        // 17) THUNDER.CLAP — add, skip next if zero
+        instructionList.add(new BasicInstruction(
+            "thunder.clap $t1,$t2,$t3",
+            "Thunder Clap: ($t1) = ($t2)+($t3); if result==0, skip next instr.",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 011111",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    int r = a + b;
+                    RegisterFile.updateRegister(op[0], r);
+                    if (r == 0) {
+                        Globals.instructionSet.processBranch(1); // skip 1 instruction
+                    }
+                }
+            }
+        ));
+
+        // 18) THUNDER.DASH — branch if positive
+        instructionList.add(new BasicInstruction(
+            "thunder.dash $t1,label",
+            "Thunder Dash: if ($t1) > 0, branch to label.",
+            BasicInstructionFormat.I_BRANCH_FORMAT,
+            "000100 fffff 00000 ssssssssssssssss",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    if (RegisterFile.getValue(op[0]) > 0) {
+                        Globals.instructionSet.processBranch(op[1]);
+                    }
+                }
+            }
+        ));
+
+        // 19) THUNDER.CHARGE — double-immediate add
+       instructionList.add(new BasicInstruction(
+    "thunder.charge $t1,100",
+    "Thunder Charge: ($t1) = ($t1) + 2*imm.",
+    BasicInstructionFormat.I_FORMAT,
+    "001001 fffff 00000 ssssssssssssssss",
+    new SimulationCode() {
+        public void simulate(ProgramStatement st) throws ProcessingException {
+            int[] op = st.getOperands();
+            int src = RegisterFile.getValue(op[0]);
+            int imm = op[1] << 16 >> 16;
+            RegisterFile.updateRegister(op[0], src + 2 * imm);
+        }
+    }
+));
+        // 20) THUNDER.DISCHARGE — zero out
+        instructionList.add(new BasicInstruction(
+            "thunder.discharge $t1",
+            "Thunder Discharge: set ($t1) = 0.",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff 00000 00000 00000 100000",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    RegisterFile.updateRegister(op[0], 0);
+                }
+            }
+        ));
+
+        // 21) THUNDER.CHAIN — double-sum
+        instructionList.add(new BasicInstruction(
+            "thunder.chain $t1,$t2,$t3",
+            "Thunder Chain: ($t1) = 2 * ( ($t2)+($t3) ).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 100001",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    RegisterFile.updateRegister(op[0], 2 * (a + b));
+                }
+            }
+        ));
+
+        // 22) THUNDER.FLASH — logical shift right
+        instructionList.add(new BasicInstruction(
+            "thunder.flash $t1,$t2,$t3",
+            "Thunder Flash: ($t1) = ($t2) >>> ( ($t3) & 31 ).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 100010",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int val = RegisterFile.getValue(op[1]);
+                    int sh  = RegisterFile.getValue(op[2]) & 31;
+                    RegisterFile.updateRegister(op[0], val >>> sh);
+                }
+            }
+        ));
+
+        // ============================================================
+        //  23–28: Beast Breathing techniques
+        // ============================================================
+
+        // 23) BEAST.FANG — absolute difference
+        instructionList.add(new BasicInstruction(
+            "beast.fang $t1,$t2,$t3",
+            "Beast Fang: ($t1) = abs( ($t2) - ($t3) ).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss ttttt 00000 100011",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[1]);
+                    int b = RegisterFile.getValue(op[2]);
+                    int diff = a - b;
+                    if (diff < 0) diff = -diff;
+                    RegisterFile.updateRegister(op[0], diff);
+                }
+            }
+        ));
+
+        // 24) BEAST.RIP — XOR with immediate
+     instructionList.add(new BasicInstruction(
+    "beast.rip $t1,100",
+    "Beast Rip: ($t1) = ($t1) ^ imm.",
+    BasicInstructionFormat.I_FORMAT,
+    "001010 fffff 00000 ssssssssssssssss",
+    new SimulationCode() {
+        public void simulate(ProgramStatement st) throws ProcessingException {
+            int[] op = st.getOperands();
+            int src = RegisterFile.getValue(op[0]);
+            int imm = op[1] << 16 >> 16;
+            RegisterFile.updateRegister(op[0], src ^ imm);
+        }
+    }
+));
+
+        // 25) BEAST.DUAL — swap two registers
+        instructionList.add(new BasicInstruction(
+            "beast.dual $t1,$t2",
+            "Beast Dual: swap ($t1) and ($t2).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss 00000 00000 100100",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int a = RegisterFile.getValue(op[0]);
+                    int b = RegisterFile.getValue(op[1]);
+                    RegisterFile.updateRegister(op[0], b);
+                    RegisterFile.updateRegister(op[1], a);
+                }
+            }
+        ));
+
+        // 26) BEAST.SENSE — sign detection
+        instructionList.add(new BasicInstruction(
+            "beast.sense $t1,$t2",
+            "Beast Sense: ($t1) = sign($t2) (-1,0,1).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff sssss 00000 00000 100101",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int v = RegisterFile.getValue(op[1]);
+                    int sign = 0;
+                    if (v > 0) sign = 1;
+                    else if (v < 0) sign = -1;
+                    RegisterFile.updateRegister(op[0], sign);
+                }
+            }
+        ));
+
+        // 27) BEAST.RAMPAGE — triple strength
+        instructionList.add(new BasicInstruction(
+            "beast.rampage $t1",
+            "Beast Rampage: ($t1) = 3*($t1).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff 00000 00000 00000 100110",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int v = RegisterFile.getValue(op[0]);
+                    RegisterFile.updateRegister(op[0], v * 3);
+                }
+            }
+        ));
+
+        // 28) BEAST.GUARD — clamp negative to 0
+        instructionList.add(new BasicInstruction(
+            "beast.guard $t1",
+            "Beast Guard: if ($t1) < 0 then set to 0 (like a guard stance).",
+            BasicInstructionFormat.R_FORMAT,
+            "000000 fffff 00000 00000 00000 100111",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int v = RegisterFile.getValue(op[0]);
+                    if (v < 0) v = 0;
+                    RegisterFile.updateRegister(op[0], v);
+                }
+            }
+        ));
+
+        // ============================================================
+        //  29–30: Nezuko Box (secure memory)
+        // ============================================================
+
+        // 29) NEZUKO.BOX — store XOR-masked
+        instructionList.add(new BasicInstruction(
+            "nezuko.box $t1,0($t2)",
+            "Nezuko Box: MEM[($t2)+0] = ($t1) ^ 0xA5A5A5A5.",
+            BasicInstructionFormat.I_FORMAT,
+            "101011 fffff sssss ssssssssssssssss",
+            new SimulationCode() {
+                public void simulate(ProgramStatement st) throws ProcessingException {
+                    int[] op = st.getOperands();
+                    int rt   = RegisterFile.getValue(op[0]);
                     int base = RegisterFile.getValue(op[1]);
                     int imm  = op[2] << 16 >> 16;
                     int addr = base + imm;
@@ -151,12 +534,12 @@ public class DemonSlayerAssembly extends CustomAssembly {
             }
         ));
 
-        // 7) NEZUKO.UNBOX — load and XOR-unmask
+        // 30) NEZUKO.UNBOX — load XOR-unmasked
         instructionList.add(new BasicInstruction(
             "nezuko.unbox $t1,0($t2)",
-            "Secure load: ($t1) = MEM[($t2)+0] ^ 0xA5A5A5A5.",
+            "Nezuko Unbox: ($t1) = MEM[($t2)+0] ^ 0xA5A5A5A5.",
             BasicInstructionFormat.I_FORMAT,
-            "100011 fffff sssss ssssssssssssssss", // like LW (0x23)
+            "100011 fffff sssss ssssssssssssssss",
             new SimulationCode() {
                 public void simulate(ProgramStatement st) throws ProcessingException {
                     int[] op = st.getOperands();
@@ -173,69 +556,8 @@ public class DemonSlayerAssembly extends CustomAssembly {
             }
         ));
 
-        // 8) DEMON.MARK — start a countdown (explicit)
-        instructionList.add(new BasicInstruction(
-            "demon.mark 1000",
-            "Enable mark countdown by imm (decrement via mark.step).",
-            BasicInstructionFormat.I_FORMAT,
-            "001000 00000 00000 ssssssssssssssss", // like ADDI $zero,$zero,imm (we just use imm)
-            new SimulationCode() {
-                public void simulate(ProgramStatement st) throws ProcessingException {
-                    int[] op = st.getOperands();
-                    markCountdown = (op[2] << 16 >> 16);
-                }
-            }
-        ));
-
-        // 9) MARK.STEP — decrement the mark (lets you model timeboxed bursts)
-        instructionList.add(new BasicInstruction(
-            "mark.step $t1",
-            "Decrement mark; ($t1) = remaining (>=0).",
-            BasicInstructionFormat.R_FORMAT,
-            "000000 00000 00000 ddddd 00000 010101", // funct=0x15
-            new SimulationCode() {
-                public void simulate(ProgramStatement st) throws ProcessingException {
-                    int[] op = st.getOperands();
-                    if (markCountdown > 0) markCountdown--;
-                    RegisterFile.updateRegister(op[0], markCountdown);
-                }
-            }
-        ));
-
-        // 10) TOTAL.CONCENTRATION — cooperative wait N ms from rs&0xFFFF
-        instructionList.add(new BasicInstruction(
-            "total.concentration $t1",
-            "Sleep for ($t1 & 0xFFFF) milliseconds (cooperative wait).",
-            BasicInstructionFormat.R_FORMAT,
-            "000000 fffff 00000 00000 00000 010110", // funct=0x16
-            new SimulationCode() {
-                public void simulate(ProgramStatement st) throws ProcessingException {
-                    int[] op = st.getOperands();
-                    int ms = RegisterFile.getValue(op[0]) & 0xFFFF;
-                    try {
-                        Thread.sleep(ms);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-        ));
-
-        // Bonus) KATANA.SWAP — swap rs and rt (handy utility)
-        instructionList.add(new BasicInstruction(
-            "katana.swap $t1,$t2",
-            "Swap ($t1) and ($t2).",
-            BasicInstructionFormat.R_FORMAT,
-            "000000 fffff sssss 00000 00000 010111", // funct=0x17
-            new SimulationCode() {
-                public void simulate(ProgramStatement st) throws ProcessingException {
-                    int[] op = st.getOperands();
-                    int a = RegisterFile.getValue(op[0]);
-                    int b = RegisterFile.getValue(op[1]);
-                    RegisterFile.updateRegister(op[0], b);
-                    RegisterFile.updateRegister(op[1], a);
-                }
-            }
-        ));
+        // =========================
+        // End: exactly 30 added ops
+        // =========================
     }
 }
