@@ -8,7 +8,7 @@ import mars.mips.instructions.*;
 /**
  * Demon Slayer Assembly
  * Custom instruction set themed around breathing styles:
- * Water, Sun, Thunder, Beast, plus some Nezuko utilities.
+ * Water, Sun, Thunder, Beast, plus some Nezuko box instructions.
  *
  * All instructions operate on the normal MARS register file and memory.
  */
@@ -557,7 +557,7 @@ instructionList.add(new BasicInstruction(
         ));
 
         // =========================
-        // End: exactly 30 added ops
+        // End of custom instructions
         // =========================
     }
 }
