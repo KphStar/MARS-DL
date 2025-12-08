@@ -494,10 +494,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          help.setMnemonic(KeyEvent.VK_H);
 
 JMenu github = GitHubMenuFactory.createEmptyGitHubMenu();
-GitHubMenuFactory.addSignInIfPresent(github);
+GitHubMenuFactory.addSignInIfPresent(github);   // sign in
 GitHubMenuFactory.addSignOutIfPresent(github);
 if (github.getItemCount() > 0) github.addSeparator();
 GitHubMenuFactory.addUploadIfPresent(github);
+GitHubMenuFactory.addDownloadIfPresent(github); 
 menuBar.add(github);
 
       	// slight bug: user typing alt-H activates help menu item directly, not help menu

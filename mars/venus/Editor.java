@@ -71,6 +71,19 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          currentOpenDirectory = defaultOpenDirectory;
          currentSaveDirectory = defaultSaveDirectory;
       }
+
+
+      /**
+ * Open a specific file in a new editor tab.
+ * @param file the file to open
+ * @return true if succeeded, false otherwise
+ */
+public boolean openFile(File file) {
+    if (file == null || editTabbedPane == null) {
+        return false;
+    }
+    return editTabbedPane.openFile(file);
+}
    	
     /**
      *  Set associated EditTabbedPane.  This is container for any/all open files.

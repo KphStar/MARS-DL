@@ -11,6 +11,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
+import org.json.JSONObject;
+
 /**
  * Handles GitHub OAuth Device Authorization Flow.
  * No client secret needed. You only need your GitHub OAuth App CLIENT_ID.
@@ -27,65 +29,80 @@ public final class GitHubDeviceLogin {
         this.scope = scope;
     }
 
-    /** Launch browser, poll until approved, return the access token. */
+    /** Launch browser, wait for user to authorize, then poll until approved and return the access token. */
     public String authorizeBlocking() throws Exception {
-        var http = HttpClient.newHttpClient();
+        HttpClient http = HttpClient.newHttpClient();
 
         // 1) Get device_code & user_code
         String form = "client_id=" + enc(clientId) + "&scope=" + enc(scope);
-        var req = HttpRequest.newBuilder(URI.create(DEVICE_CODE_URL))
+        HttpRequest req = HttpRequest.newBuilder(URI.create(DEVICE_CODE_URL))
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .timeout(Duration.ofSeconds(20))
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();
-        var res = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (res.statusCode() != 200) throw new IOException("GitHub device start failed: " + res.body());
 
-        var json = new org.json.JSONObject(res.body());
+        HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() != 200) {
+            throw new IOException("GitHub device start failed: " + res.body());
+        }
+
+        JSONObject json = new JSONObject(res.body());
         String deviceCode = json.getString("device_code");
         String userCode   = json.getString("user_code");
         String verifyUri  = json.getString("verification_uri");
         int intervalSec   = json.optInt("interval", 5);
 
         // 2) Show instructions + open browser
-        SwingUtilities.invokeLater(() -> {
-            try { Desktop.getDesktop().browse(URI.create(verifyUri)); } catch (Exception ignore) {}
-            JOptionPane.showMessageDialog(null,
-                    "Authorize MARS to use your GitHub account:\n\n" +
-                    "1) Your browser opened: " + verifyUri + "\n" +
-                    "2) Enter this code:  " + userCode + "\n" +
-                    "3) Click Authorize.\n\n" +
-                    "Return here after approving.",
-                    "GitHub Sign-In", JOptionPane.INFORMATION_MESSAGE);
-        });
+        try {
+            Desktop.getDesktop().browse(URI.create(verifyUri));
+        } catch (Exception ignore) {}
+
+        JOptionPane.showMessageDialog(null,
+                "Authorize this app to use your GitHub account:\n\n" +
+                "1) Your browser opened: " + verifyUri + "\n" +
+                "2) Enter this code:  " + userCode + "\n" +
+                "3) Click Authorize.\n\n" +
+                "Return here after approving.",
+                "GitHub Sign-In", JOptionPane.INFORMATION_MESSAGE);
 
         // 3) Poll for token
         while (true) {
             Thread.sleep(intervalSec * 1000L);
+
             String poll = "client_id=" + enc(clientId) +
                           "&device_code=" + enc(deviceCode) +
                           "&grant_type=urn:ietf:params:oauth:grant-type:device_code";
 
-            var tokenReq = HttpRequest.newBuilder(URI.create(TOKEN_URL))
+            HttpRequest tokenReq = HttpRequest.newBuilder(URI.create(TOKEN_URL))
                     .header("Accept", "application/json")
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .timeout(Duration.ofSeconds(20))
                     .POST(HttpRequest.BodyPublishers.ofString(poll))
                     .build();
 
-            var tokenRes = http.send(tokenReq, HttpResponse.BodyHandlers.ofString());
-            if (tokenRes.statusCode() != 200)
+            HttpResponse<String> tokenRes = http.send(tokenReq, HttpResponse.BodyHandlers.ofString());
+            if (tokenRes.statusCode() != 200) {
                 throw new IOException("GitHub token error: " + tokenRes.body());
+            }
 
-            var tjson = new org.json.JSONObject(tokenRes.body());
+            JSONObject tjson = new JSONObject(tokenRes.body());
+
             if (tjson.has("access_token")) {
                 return tjson.getString("access_token");
             }
+
             String err = tjson.optString("error", "");
-            if ("authorization_pending".equals(err)) continue;
-            if ("slow_down".equals(err)) { intervalSec += 2; continue; }
-            if (!err.isEmpty()) throw new IOException("GitHub authorization failed: " + err);
+            if ("authorization_pending".equals(err)) {
+                continue;
+            }
+            if ("slow_down".equals(err)) {
+                intervalSec += 2;
+                continue;
+            }
+            if (!err.isEmpty()) {
+                throw new IOException("GitHub authorization failed: " + err);
+            }
         }
     }
 

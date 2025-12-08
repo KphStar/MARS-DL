@@ -591,7 +591,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         * Open the specified file.  Return true if file opened, false otherwise
         */
       
-          private boolean openFile(File theFile) {
+          public boolean openFile(File theFile) {
             try {
                theFile = theFile.getCanonicalFile();
             } 

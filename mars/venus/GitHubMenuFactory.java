@@ -20,4 +20,7 @@ public final class GitHubMenuFactory {
     public static void addUploadIfPresent(JMenu m) {
         OptionalMenus.addActionIfPresent(m, "mars.venus.UploadToGitHubAction");
     }
+    public static void addDownloadIfPresent(JMenu m) {
+    OptionalMenus.addActionIfPresent(m, "mars.venus.DownloadFromGitHubAction");
+}
 }

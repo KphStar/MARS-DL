@@ -16,58 +16,67 @@ import java.util.UUID;
 public class UploadToGitHubAction extends AbstractAction {
 
     public UploadToGitHubAction() {
-        super("Upload to GitHub…");
+        super("Upload…");
         putValue(SHORT_DESCRIPTION, "Commit and push a local file to a GitHub repository");
     }
 
     @Override
     public void actionPerformed(ActionEvent evt) {
-        UploadDialog d = new UploadDialog();
+        // 0) Must be signed in (session holds token + login)
+        GitHubAuthSession session = GitHubAuthSession.CURRENT;
+        if (session == null) {
+            JOptionPane.showMessageDialog(null,
+                    "You are not signed in.\nUse GitHub ▸ Sign in first.",
+                    "GitHub", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // 1) Ask what to upload / where (only file + repo name + branch + message)
+        UploadDialog d = new UploadDialog(session.login);
         d.setVisible(true);
         if (!d.ok) return;
 
-        final String repoUrl = normalizeRepoUrl(d.getRepoUrl());
-        final String branch  = d.getBranch().trim();
-
-        if (!repoUrl.startsWith("https://")) {
+        String repoName = d.getRepoName().trim();
+        if (repoName.isEmpty()) {
             JOptionPane.showMessageDialog(null,
-                    "Use an HTTPS URL, e.g. https://github.com/<user>/<repo>.git",
+                    "Enter a repository name.",
                     "GitHub", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        // ---- Credentials selection ----
-        String userForHttps = "oauth2";   // user is ignored for HTTPS+token; must be non-empty
-        String tokenForHttps = null;
+        // Allow "MyRepo.git" or "/MyRepo"
+        if (repoName.startsWith("/")) repoName = repoName.substring(1);
+        if (repoName.endsWith(".git")) repoName = repoName.substring(0, repoName.length() - 4);
 
-        // (1) Prefer OAuth Device Flow session
-        if (GitHubDeviceAuth.CURRENT != null) {
-            tokenForHttps = GitHubDeviceAuth.CURRENT.accessToken;
-        }
+        // Build full HTTPS URL: https://github.com/<login>/<repo>.git
+        String login = (session.login == null || session.login.isBlank())
+                ? "YourUser"
+                : session.login;
+        final String repoUrl = "https://github.com/" + login + "/" + repoName + ".git";
 
-        // (2) Fall back to PAT dialog/env
-        if (tokenForHttps == null || tokenForHttps.isBlank()) {
-            String envUser  = System.getenv("GH_USER");
-            String envToken = System.getenv("GH_TOKEN");
-            userForHttps  = (envUser != null && !envUser.isBlank()) ? envUser : d.getUsername();
-            tokenForHttps = (envToken != null && !envToken.isBlank()) ? envToken : d.getToken();
-        }
+        final String branch = (d.getBranch().trim().isEmpty() ? "main" : d.getBranch().trim());
 
-        if (tokenForHttps == null || tokenForHttps.isBlank()) {
+        Path local = Paths.get(d.getLocalFile());
+        if (!Files.isRegularFile(local)) {
             JOptionPane.showMessageDialog(null,
-                    "No credentials. Sign in (GitHub ▸ Sign in) or provide a Personal Access Token.",
-                    "GitHub", JOptionPane.WARNING_MESSAGE);
+                    "Local file not found:\n" + local,
+                    "GitHub", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        var creds = new UsernamePasswordCredentialsProvider(userForHttps, tokenForHttps);
+        // Path in repo = just the filename (no subfolders)
+        final String pathInRepo = local.getFileName().toString();
+
+        var creds = new UsernamePasswordCredentialsProvider("oauth2", session.accessToken);
 
         Path temp = null;
         Git git = null;
         try {
             temp = Files.createTempDirectory("mars-git-" + UUID.randomUUID());
 
-            // Try clone, else init
+            // 2) Try to CLONE repo. If that fails (empty repo / no commits / no such repo),
+            //    we INIT a new local repo and still commit.
+            boolean cloned = false;
             try {
                 git = Git.cloneRepository()
                         .setURI(repoUrl)
@@ -75,51 +84,78 @@ public class UploadToGitHubAction extends AbstractAction {
                         .setCloneAllBranches(false)
                         .setCredentialsProvider(creds)
                         .call();
-                try { git.checkout().setName(branch).call(); } catch (Exception ignore) {}
+                cloned = true;
             } catch (Exception cloneFail) {
-                git = Git.init().setDirectory(temp.toFile()).call();
+                // clone failed – we'll create a new repo and push the first commit later
+                git = Git.init()
+                        .setDirectory(temp.toFile())
+                        .setInitialBranch(branch)   // <-- important: avoid unborn HEAD + checkout
+                        .call();
                 git.remoteAdd().setName("origin").setUri(new URIish(repoUrl)).call();
-                try { git.checkout().setCreateBranch(true).setName(branch).call(); } catch (Exception ignore) {}
             }
 
-            // Copy file
-            Path local = Paths.get(d.getLocalFile());
-            if (!Files.isRegularFile(local)) throw new IllegalArgumentException("Local file not found: " + local);
-            String pathInRepo = d.getPathInRepo().replace("\\","/");
+            // 3) Copy file into repo root
             Path target = temp.resolve(pathInRepo);
-            if (target.getParent()!=null) Files.createDirectories(target.getParent());
+            if (target.getParent() != null) Files.createDirectories(target.getParent());
             Files.copy(local, target, StandardCopyOption.REPLACE_EXISTING);
 
-            // Ensure branch
+            // 4) Branch handling
             boolean unborn = (git.getRepository().resolve("HEAD^{commit}") == null);
-            if (unborn) {
-                git.checkout().setCreateBranch(true).setName(branch).call();
-            } else {
+
+            if (!unborn) {
+                // Repo already has commits (either cloned or previously initialized+committed).
+                // Now make sure we're on the requested branch.
                 try {
                     String current = git.getRepository().getBranch();
                     if (!branch.equals(current)) {
-                        try { git.checkout().setName(branch).call(); }
-                        catch (Exception ex) { git.checkout().setCreateBranch(true).setName(branch).call(); }
+                        try {
+                            // branch might already exist
+                            git.checkout().setName(branch).call();
+                        } catch (Exception ex) {
+                            // create new branch from current HEAD
+                            git.checkout().setCreateBranch(true).setName(branch).call();
+                        }
                     }
                 } catch (Exception any) {
-                    git.checkout().setCreateBranch(true).setName(branch).call();
+                    // if anything weird happens, just stay on whatever branch we're on
+                    System.err.println("Branch switch failed, staying on current branch: " + any);
                 }
             }
+            // If unborn == true, we do NOT touch branches here.
+            // For the init case we already set initialBranch(branch), so the first commit
+            // will create refs/heads/<branch>. No checkout necessary.
 
-            // Stage + identity + commit
+            // 5) Stage the file
             git.add().addFilepattern(pathInRepo).call();
 
+            // 6) Commit identity based on signed-in GitHub user
             StoredConfig cfg = git.getRepository().getConfig();
             if (cfg.getString("user", null, "name") == null) {
-                // a friendly identity (not used by GitHub auth)
-                cfg.setString("user", null, "name", "MARS");
-                cfg.setString("user", null, "email", "noreply@example.com");
+                cfg.setString("user", null, "name", login);
+                String email = login + "@users.noreply.github.com";
+                cfg.setString("user", null, "email", email);
                 cfg.save();
             }
 
-            git.commit().setMessage(d.getCommitMessage()).call();
+            // 7) Commit
+            git.commit()
+               .setMessage(d.getCommitMessage())
+               .call();
 
-            // Push
+            // 8) Pull only if we actually cloned (repo exists with commits).
+            //    For first-time init/push there is nothing to pull.
+            if (cloned) {
+                try {
+                    git.pull()
+                       .setRemote("origin")
+                       .setCredentialsProvider(creds)
+                       .call();
+                } catch (Exception pullEx) {
+                    System.err.println("Git pull failed (continuing to push): " + pullEx);
+                }
+            }
+
+            // 9) Push – this will create the branch remotely if it doesn’t exist yet.
             git.push()
                .setRemote("origin")
                .setRefSpecs(new RefSpec("refs/heads/" + branch + ":refs/heads/" + branch))
@@ -127,11 +163,18 @@ public class UploadToGitHubAction extends AbstractAction {
                .setForce(false)
                .call();
 
-            JOptionPane.showMessageDialog(null, "Upload complete ✅", "GitHub", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(null,
+                    "Upload complete.\n\n" +
+                    "Repo:   " + repoUrl + "\n" +
+                    "Branch: " + branch + "\n" +
+                    "File:   " + pathInRepo + "\n" +
+                    "User:   " + login,
+                    "GitHub", JOptionPane.INFORMATION_MESSAGE);
 
         } catch (Exception ex) {
+            ex.printStackTrace();
             Throwable root = ex;
-            while (root.getCause()!=null) root = root.getCause();
+            while (root.getCause() != null) root = root.getCause();
             JOptionPane.showMessageDialog(null,
                     "Upload failed:\n" + root.getMessage() + "\n\nRepo URL used:\n" + repoUrl,
                     "GitHub", JOptionPane.ERROR_MESSAGE);
@@ -141,85 +184,96 @@ public class UploadToGitHubAction extends AbstractAction {
         }
     }
 
-    private static String normalizeRepoUrl(String url) {
-        if (url == null) return "";
-        url = url.trim();
-        if (url.startsWith("git@github.com:"))
-            url = "https://github.com/" + url.substring("git@github.com:".length());
-        while (url.endsWith("/")) url = url.substring(0, url.length()-1);
-        if (!url.isEmpty() && !url.endsWith(".git")) url += ".git";
-        return url;
-    }
-
     private static void deleteRecursively(Path root) throws IOException {
         if (root == null || !Files.exists(root)) return;
         Files.walk(root)
-             .sorted((a,b)->b.getNameCount()-a.getNameCount())
+             .sorted((a, b) -> b.getNameCount() - a.getNameCount())
              .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignore) {} });
     }
 
-    // ===== Dialog (unchanged except title text) =====
-    static class UploadDialog extends JDialog {
-        JTextField tfLocal  = new JTextField();
-        JTextField tfRepo   = new JTextField("https://github.com/YourUser/YourRepo.git");
-        JTextField tfBranch = new JTextField("main");
-        JTextField tfPath   = new JTextField("mips/" + System.getProperty("user.name","user") + ".asm");
-        JTextField tfMsg    = new JTextField("Add file from MARS");
-        JTextField tfUser   = new JTextField(System.getenv().getOrDefault("GH_USER",""));
-        JPasswordField pfToken = new JPasswordField(System.getenv().getOrDefault("GH_TOKEN",""));
-        boolean ok = false;
+   // ===== Dialog: file, repo name, branch, message =====
+static class UploadDialog extends JDialog {
+    JTextField tfLocal    = new JTextField();
+    JTextField tfRepoName = new JTextField();
+    JTextField tfBranch   = new JTextField("main");
+    JTextField tfMsg      = new JTextField("Add file from MARS");
+    boolean ok = false;
 
-        UploadDialog() {
-            setTitle("Upload to GitHub");
-            setModal(true);
-            setSize(640, 380);
-            setLocationRelativeTo(null);
-            setLayout(new BorderLayout(10,10));
-            JButton browse = new JButton("Browse…");
-            browse.addActionListener(ev -> {
-                JFileChooser fc = new JFileChooser();
-                if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                    tfLocal.setText(fc.getSelectedFile().getAbsolutePath());
-                }
-            });
-            JPanel form = new JPanel(new GridLayout(0,1,6,6));
-            form.add(row("Local file", tfLocal, browse));
-            form.add(row("Repo URL (HTTPS)", tfRepo));
-            form.add(row("Branch", tfBranch));
-            form.add(row("Path in repo", tfPath));
-            form.add(row("Commit message", tfMsg));
-            form.add(row("GitHub username (fallback if not signed in)", tfUser));
-            form.add(row("Personal Access Token (fallback if not signed in)", pfToken));
-            add(form, BorderLayout.CENTER);
-            JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-            JButton cancel = new JButton("Cancel");
-            JButton okBtn  = new JButton("Upload");
-            cancel.addActionListener(e -> dispose());
-            okBtn.addActionListener(e -> { ok = true; dispose(); });
-            actions.add(cancel); actions.add(okBtn);
-            add(actions, BorderLayout.SOUTH);
-        }
-        private JPanel row(String label, JComponent field) {
-            JPanel p = new JPanel(new BorderLayout(5,5));
-            p.add(new JLabel(label), BorderLayout.NORTH);
-            p.add(field, BorderLayout.CENTER);
-            return p;
-        }
-        private JPanel row(String label, JComponent field, JButton extra) {
-            JPanel p = new JPanel(new BorderLayout(5,5));
-            p.add(new JLabel(label), BorderLayout.NORTH);
-            JPanel inner = new JPanel(new BorderLayout(5,5));
-            inner.add(field, BorderLayout.CENTER);
-            inner.add(extra, BorderLayout.EAST);
-            p.add(inner, BorderLayout.CENTER);
-            return p;
-        }
-        public String getLocalFile()     { return tfLocal.getText().trim(); }
-        public String getRepoUrl()       { return tfRepo.getText().trim(); }
-        public String getBranch()        { return tfBranch.getText().trim(); }
-        public String getPathInRepo()    { return tfPath.getText().trim().replace("\\","/"); }
-        public String getCommitMessage() { return tfMsg.getText().trim(); }
-        public String getUsername()      { return tfUser.getText().trim(); }
-        public String getToken()         { return new String(pfToken.getPassword()); }
+    UploadDialog(String githubLogin) {
+        setTitle("Upload to GitHub");
+        setModal(true);
+        setSize(640, 280);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout(10, 10));
+
+        JButton browseFile = new JButton("Browse…");
+        browseFile.addActionListener(ev -> {
+            JFileChooser fc = new JFileChooser();
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                tfLocal.setText(fc.getSelectedFile().getAbsolutePath());
+            }
+        });
+
+        JButton browseRepos = new JButton("Repos…");
+        browseRepos.addActionListener(ev -> {
+            GitHubAuthSession s = GitHubAuthSession.CURRENT;
+            if (s == null) {
+                JOptionPane.showMessageDialog(this,
+                        "You are not signed in.\nUse GitHub ▸ Sign in first.",
+                        "GitHub", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            GitHubRepoChooserDialog chooser =
+                    new GitHubRepoChooserDialog(this, s);
+            chooser.setVisible(true);
+            String chosen = chooser.getSelectedRepoName();
+            if (chosen != null && !chosen.isBlank()) {
+                tfRepoName.setText(chosen);
+            }
+        });
+
+        String userLabel = (githubLogin == null || githubLogin.isBlank())
+                ? "your GitHub username"
+                : githubLogin;
+
+        JPanel form = new JPanel(new GridLayout(0, 1, 6, 6));
+        form.add(row("Local file", tfLocal, browseFile));
+        form.add(row("Repository (under https://github.com/" + userLabel + "/)", tfRepoName, browseRepos));
+        form.add(row("Branch", tfBranch));
+        form.add(row("Commit message", tfMsg));
+
+        add(form, BorderLayout.CENTER);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton cancel = new JButton("Cancel");
+        JButton okBtn  = new JButton("Upload");
+        cancel.addActionListener(e -> dispose());
+        okBtn.addActionListener(e -> { ok = true; dispose(); });
+        actions.add(cancel);
+        actions.add(okBtn);
+        add(actions, BorderLayout.SOUTH);
     }
+
+    private JPanel row(String label, JComponent field) {
+        JPanel p = new JPanel(new BorderLayout(5, 5));
+        p.add(new JLabel(label), BorderLayout.NORTH);
+        p.add(field, BorderLayout.CENTER);
+        return p;
+    }
+
+    private JPanel row(String label, JComponent field, JButton extra) {
+        JPanel p = new JPanel(new BorderLayout(5, 5));
+        p.add(new JLabel(label), BorderLayout.NORTH);
+        JPanel inner = new JPanel(new BorderLayout(5, 5));
+        inner.add(field, BorderLayout.CENTER);
+        inner.add(extra, BorderLayout.EAST);
+        p.add(inner, BorderLayout.CENTER);
+        return p;
+    }
+
+    public String getLocalFile()     { return tfLocal.getText().trim(); }
+    public String getRepoName()      { return tfRepoName.getText().trim(); }
+    public String getBranch()        { return tfBranch.getText().trim(); }
+    public String getCommitMessage() { return tfMsg.getText().trim(); }
+}
 }
