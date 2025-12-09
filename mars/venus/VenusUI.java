@@ -475,31 +475,50 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     
        private JMenuBar setUpMenuBar() {
       
-         Toolkit tk = Toolkit.getDefaultToolkit();
-         Class cs = this.getClass(); 
-         JMenuBar menuBar = new JMenuBar();
-         file=new JMenu("File");
-         file.setMnemonic(KeyEvent.VK_F);
-         edit = new JMenu("Edit");
-         edit.setMnemonic(KeyEvent.VK_E);
-         run=new JMenu("Run");
-         run.setMnemonic(KeyEvent.VK_R);
-         //window = new JMenu("Window");
-         //window.setMnemonic(KeyEvent.VK_W);
-         settings = new JMenu("Settings");
-         settings.setMnemonic(KeyEvent.VK_S);
-          language = new JMenu("Language");
-         language.setMnemonic(KeyEvent.VK_L);
-         help = new JMenu("Help");
-         help.setMnemonic(KeyEvent.VK_H);
+    Toolkit tk = Toolkit.getDefaultToolkit();
+    Class cs = this.getClass();
 
-JMenu github = GitHubMenuFactory.createEmptyGitHubMenu();
-GitHubMenuFactory.addSignInIfPresent(github);   // sign in
-GitHubMenuFactory.addSignOutIfPresent(github);
-if (github.getItemCount() > 0) github.addSeparator();
-GitHubMenuFactory.addUploadIfPresent(github);
-GitHubMenuFactory.addDownloadIfPresent(github); 
-menuBar.add(github);
+    JMenuBar menuBar = new JMenuBar();
+
+    // ----- Standard menus -----
+   file=new JMenu("File"); 
+   file.setMnemonic(KeyEvent.VK_F);
+    menuBar.add(file);
+
+    edit = new JMenu("Edit");
+    edit.setMnemonic(KeyEvent.VK_E);
+    menuBar.add(edit);
+
+    run = new JMenu("Run");
+    run.setMnemonic(KeyEvent.VK_R);
+    menuBar.add(run);
+
+    settings = new JMenu("Settings");
+    settings.setMnemonic(KeyEvent.VK_S);
+    menuBar.add(settings);
+
+    language = new JMenu("Language");
+    language.setMnemonic(KeyEvent.VK_L);
+    menuBar.add(language);
+
+    help = new JMenu("Help");
+    help.setMnemonic(KeyEvent.VK_H);
+    menuBar.add(help);
+
+    // ----- GitHub menu -----
+    JMenu github = GitHubMenuFactory.createEmptyGitHubMenu();
+    GitHubMenuFactory.addSignInIfPresent(github);
+    GitHubMenuFactory.addSignOutIfPresent(github);
+    if (github.getItemCount() > 0) github.addSeparator();
+    GitHubMenuFactory.addUploadIfPresent(github);
+    GitHubMenuFactory.addDownloadIfPresent(github);
+
+    // decorate the GitHub menu itself with icon + username
+    GitHubMenuStatus.attach(github);
+
+    // add GitHub at the end, inline with the others
+    menuBar.add(github);
+
 
       	// slight bug: user typing alt-H activates help menu item directly, not help menu
       

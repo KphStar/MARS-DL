@@ -9,6 +9,7 @@ public class SignOutOfGitHubAction extends AbstractAction {
     public SignOutOfGitHubAction() {
         super("Sign out");
         putValue(SHORT_DESCRIPTION, "Sign out of GitHub");
+     
     }
 
     @Override
@@ -17,5 +18,8 @@ public class SignOutOfGitHubAction extends AbstractAction {
         JOptionPane.showMessageDialog(null,
                 "Signed out of GitHub.",
                 "GitHub", JOptionPane.INFORMATION_MESSAGE);
+        //GitHubStatusIndicator.updateStatus();
+        GitHubMenuStatus.update();
     }
+    
 }

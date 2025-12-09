@@ -5,10 +5,12 @@ public final class GitHubAuthSession {
 
     public final String accessToken;
     public final String login;   // GitHub username (login)
+    public final String avatarUrl;  
 
-    public GitHubAuthSession(String accessToken, String login) {
+    public GitHubAuthSession(String accessToken, String login, String avatarUrl) {
         this.accessToken = accessToken;
         this.login = login;
+        this.avatarUrl = avatarUrl;
     }
 
     public static void clear() {

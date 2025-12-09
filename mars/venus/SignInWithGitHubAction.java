@@ -50,9 +50,10 @@ public class SignInWithGitHubAction extends AbstractAction {
 
             JSONObject json = new JSONObject(res.body());
             String loginName = json.optString("login", "unknown");
+            String avatarUrl = json.optString("avatar_url", null);
 
             // 3) Store session
-            GitHubAuthSession.CURRENT = new GitHubAuthSession(token, loginName);
+            GitHubAuthSession.CURRENT = new GitHubAuthSession(token, loginName, avatarUrl);
 
             JOptionPane.showMessageDialog(null,
                     "Signed in to GitHub as: " + loginName,
@@ -64,5 +65,6 @@ public class SignInWithGitHubAction extends AbstractAction {
                     "GitHub sign-in failed:\n" + ex.getMessage(),
                     "GitHub", JOptionPane.ERROR_MESSAGE);
         }
+        GitHubMenuStatus.update();
     }
 }
