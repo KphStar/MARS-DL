@@ -505,6 +505,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     help.setMnemonic(KeyEvent.VK_H);
     menuBar.add(help);
 
+     // ✅ NEW THEME MENU HERE
+    JMenu themeMenu = ColorThemeMenu.create(this);
+    menuBar.add(themeMenu);
+
     // ----- GitHub menu -----
     JMenu github = GitHubMenuFactory.createEmptyGitHubMenu();
     GitHubMenuFactory.addSignInIfPresent(github);

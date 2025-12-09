@@ -729,5 +729,18 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       
       
       }
+
+
+         /**
+    * Apply theme colors to all open EditPane tabs.
+    */
+   public void applyThemeToAllPanes(Color bg, Color fg) {
+      for (int i = 0; i < getTabCount(); i++) {
+         Component c = getComponentAt(i);
+         if (c instanceof EditPane) {
+            ((EditPane) c).applyTheme(bg, fg);
+         }
+      }
+   }
    
    }

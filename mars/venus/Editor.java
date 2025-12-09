@@ -2,6 +2,7 @@
    import mars.*;
    import javax.swing.*;
    import java.io.*;
+   import java.awt.*; 
  
  /*
 Copyright (c) 2003-2007,  Pete Sanderson and Kenneth Vollmar
@@ -266,5 +267,15 @@ public boolean openFile(File file) {
        public boolean editsSavedOrAbandoned() {
          return editTabbedPane.editsSavedOrAbandoned();
       }
+
+         /**
+    * Apply theme to all editor tabs (if any are open).
+    */
+   public void applyTheme(Color bg, Color fg) {
+      if (editTabbedPane != null) {
+         editTabbedPane.applyThemeToAllPanes(bg, fg);
+      }
+   }
+
    
    }

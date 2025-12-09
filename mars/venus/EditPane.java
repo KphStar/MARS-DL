@@ -620,6 +620,51 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                  ? sourceFont
             	  : new Font(sourceFont.getFamily(), Font.PLAIN, sourceFont.getSize());
       }
+
+
+       /**
+    * Apply background/foreground colors to this editor pane and all nested
+    * components (text area, scroll panes, line numbers, etc.).
+    */
+   public void applyTheme(Color bg, Color fg) {
+      // This panel itself
+      setBackground(bg);
+      setForeground(fg);
+
+      // Recolor everything inside the text editing area
+      try {
+         Component outer = sourceCode.getOuterComponent();
+         applyColorsRecursive(outer, bg, fg);
+      } catch (Throwable ignore) {
+         // don't let theme changes crash the editor
+      }
+
+      // Line numbers + status bar
+      if (lineNumbers != null) {
+         lineNumbers.setBackground(bg);
+         lineNumbers.setForeground(fg);
+      }
+      if (caretPositionLabel != null) {
+         caretPositionLabel.setBackground(bg);
+         caretPositionLabel.setForeground(fg);
+      }
+   }
+
+   /** Recursively apply colors to all Swing components in a subtree. */
+   private void applyColorsRecursive(Component c, Color bg, Color fg) {
+      if (c == null) return;
+
+      // Most components in this hierarchy are Swing components
+      c.setBackground(bg);
+      c.setForeground(fg);
+
+      if (c instanceof Container) {
+         for (Component child : ((Container) c).getComponents()) {
+            applyColorsRecursive(child, bg, fg);
+         }
+      }
+   }
+
       
    	
    }
