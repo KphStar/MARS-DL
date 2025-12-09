@@ -326,7 +326,7 @@ rand_1_to_100:
     and  $t1, $t1, $t2
     sw   $t1, 0($t0)
 
-    li   $t2, 100
+    li   $t2, 10
     div  $t1, $t2
     mfhi $t3
     addi $v0, $t3, 1      # 1..100
