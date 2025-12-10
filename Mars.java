@@ -32,16 +32,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * 
  * @author Pete Sanderson
  * @version March 2006
- **
+ ***/
 
-    public class Mars {
-       public static void main(String[] args) {
-         new mars.MarsLaunch(args);
-      }
-   } 
-   // end class Mars*/
 
-   import mars.MarsLaunch;
+import mars.MarsLaunch;
 
 import javax.swing.*;
 import java.awt.*;
