@@ -3,6 +3,10 @@ Copyright (c) 2003-2013,  Pete Sanderson and Kenneth Vollmar
 Developed by Pete Sanderson (psanderson@otterbein.edu)
 and Kenneth Vollmar (kenvollmar@missouristate.edu)
 
+Fork maintained and modified by Duc Le (KphStar)
+GitHub:  https://github.com/KphStar
+Website: https://kphstar.github.io
+
 Permission is hereby granted, free of charge, to any person obtaining 
 a copy of this software and associated documentation files (the 
 "Software"), to deal in the Software without restriction, including 
