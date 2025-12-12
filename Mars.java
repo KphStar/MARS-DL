@@ -45,7 +45,7 @@ import java.awt.*;
  */
 public class Mars {
 
-    private static final String DEFAULT_PASSWORD = "ChangeMe123";
+    private static final String DEFAULT_PASSWORD = "CS240";
 
     public static void main(String[] args) {
         // 1) Check password before starting MARS GUI
